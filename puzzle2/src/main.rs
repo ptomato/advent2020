@@ -21,8 +21,7 @@ impl PasswordRule {
             let second = self.password.chars().nth(self.max - 1).unwrap();
             (first == self.letter) != (second == self.letter)
         } else {
-            let letter = String::from(self.letter);
-            let count = self.password.matches(&letter).count();
+            let count = self.password.matches(self.letter).count();
             count >= self.min && count <= self.max
         }
     }
