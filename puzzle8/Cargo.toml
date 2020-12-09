@@ -1,0 +1,12 @@
+[package]
+name = "puzzle8"
+version = "0.1.0"
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "puzzle8"
+path = "puzzle8.rs"
+
+[dependencies]
+bitvec = "0.19.4"
