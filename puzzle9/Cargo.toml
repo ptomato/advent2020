@@ -1,0 +1,12 @@
+[package]
+name = "puzzle9"
+version = "0.1.0"
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "puzzle9"
+path = "puzzle9.rs"
+
+[dependencies]
+itertools = "0.9.0"
