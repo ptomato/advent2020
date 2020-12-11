@@ -1,0 +1,12 @@
+[package]
+name = "puzzle11"
+version = "0.1.0"
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "puzzle11"
+path = "puzzle11.rs"
+
+[dependencies]
+ndarray = "0.14.0"
