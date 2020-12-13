@@ -15,15 +15,16 @@ enum Direction {
 
 impl Direction {
     fn from_string(line: &str) -> Self {
+        use Direction::*;
         let parameter = &line[1..];
         match line.chars().next().unwrap() {
-            'N' => Direction::North(parameter.parse().unwrap()),
-            'S' => Direction::South(parameter.parse().unwrap()),
-            'E' => Direction::East(parameter.parse().unwrap()),
-            'W' => Direction::West(parameter.parse().unwrap()),
-            'L' => Direction::Left(parameter.parse().unwrap()),
-            'R' => Direction::Right(parameter.parse().unwrap()),
-            'F' => Direction::Forward(parameter.parse().unwrap()),
+            'N' => North(parameter.parse().unwrap()),
+            'S' => South(parameter.parse().unwrap()),
+            'E' => East(parameter.parse().unwrap()),
+            'W' => West(parameter.parse().unwrap()),
+            'L' => Left(parameter.parse().unwrap()),
+            'R' => Right(parameter.parse().unwrap()),
+            'F' => Forward(parameter.parse().unwrap()),
             _ => panic!("Bad instruction {}", line),
         }
     }
@@ -49,38 +50,40 @@ impl Ship {
     }
 
     fn go(&mut self, dir: &Direction) {
+        use Direction::*;
         match dir {
-            Direction::North(dist) => self.latitude += *dist,
-            Direction::South(dist) => self.latitude -= *dist,
-            Direction::East(dist) => self.longitude += *dist,
-            Direction::West(dist) => self.longitude -= *dist,
-            Direction::Left(angle) => {
+            North(dist) => self.latitude += *dist,
+            South(dist) => self.latitude -= *dist,
+            East(dist) => self.longitude += *dist,
+            West(dist) => self.longitude -= *dist,
+            Left(angle) => {
                 self.facing -= *angle / 90;
                 self.facing += 4;
                 self.facing %= 4;
             }
-            Direction::Right(angle) => {
+            Right(angle) => {
                 self.facing += *angle / 90;
                 self.facing += 4;
                 self.facing %= 4;
             }
-            Direction::Forward(dist) => match self.facing {
-                0 => self.go(&Direction::East(*dist)),
-                1 => self.go(&Direction::South(*dist)),
-                2 => self.go(&Direction::West(*dist)),
-                3 => self.go(&Direction::North(*dist)),
+            Forward(dist) => match self.facing {
+                0 => self.go(&East(*dist)),
+                1 => self.go(&South(*dist)),
+                2 => self.go(&West(*dist)),
+                3 => self.go(&North(*dist)),
                 _ => panic!("Bad internal state: facing = {}", self.facing),
             },
         };
     }
 
     fn move_waypoint(&mut self, dir: &Direction) {
+        use Direction::*;
         match dir {
-            Direction::North(dist) => self.waypoint_n += *dist,
-            Direction::South(dist) => self.waypoint_n -= *dist,
-            Direction::East(dist) => self.waypoint_e += *dist,
-            Direction::West(dist) => self.waypoint_e -= *dist,
-            Direction::Left(angle) => {
+            North(dist) => self.waypoint_n += *dist,
+            South(dist) => self.waypoint_n -= *dist,
+            East(dist) => self.waypoint_e += *dist,
+            West(dist) => self.waypoint_e -= *dist,
+            Left(angle) => {
                 let (new_waypoint_n, new_waypoint_e) = match *angle / 90 {
                     0 => (self.waypoint_n, self.waypoint_e),
                     1 => (self.waypoint_e, -self.waypoint_n),
@@ -91,10 +94,10 @@ impl Ship {
                 self.waypoint_n = new_waypoint_n;
                 self.waypoint_e = new_waypoint_e;
             }
-            Direction::Right(angle) => {
-                self.move_waypoint(&Direction::Left(360 - *angle));
+            Right(angle) => {
+                self.move_waypoint(&Left(360 - *angle));
             }
-            Direction::Forward(times) => {
+            Forward(times) => {
                 self.latitude += self.waypoint_n * *times;
                 self.longitude += self.waypoint_e * *times;
             }
