@@ -1,0 +1,12 @@
+[package]
+name = "puzzle14"
+version = "0.1.0"
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "puzzle14"
+path = "puzzle14.rs"
+
+[dependencies]
+scan_fmt = "0.2.5"
