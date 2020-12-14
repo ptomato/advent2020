@@ -1,0 +1,63 @@
+digraph {
+    node [fontname="Hack", shape=box];
+    edge [fontname="Hack", fontsize=12];
+    ranksep=1;
+
+    { rank=same;
+        node [fontsize=18, style=filled, fillcolor=lightblue];
+        E; T; "()";
+    }
+    { rank=same;
+        node [style=rounded, fontsize=12];
+        Err [label="Err(e)"];
+        None;
+        Ok [label="Ok(t)"];
+        Some [label="Some(t)"];
+        unwrap_expect [label=<<font color="red">unwrap, expect,</font><br/>unwrap_or[_else],<br/>unwrap_or_default>];
+        unwrap_err [label="unwrap_err,\nexpect_err", fontcolor=red];
+        unwrap_none [label="unwrap_none,\nexpect_none", fontcolor=red];
+    }
+    { rank=same;
+        or [label="or[_else]", style=rounded, fontsize=12];
+        "Result<T, E>" [fontsize=24, style=filled, fillcolor=lightblue];
+        "Option<T>" [fontsize=24, style=filled, fillcolor=lightblue];
+        filter [label="filter, xor,\nor[_else],\nreplace", style=rounded, fontsize=12];
+    }
+    { rank=same;
+        node [style=rounded, fontsize=12];
+        err;
+        map1 [label="map,\nand[_then]"];
+        map2 [label="map,\nand[_then]"];
+        map_err;
+        map_or [label="map_or[_else]"];
+    }
+    { rank=same;
+        node [fontsize=18, style=filled, fillcolor=lightblue];
+        U; "Result<T, F>"; "Result<U, E>"; "Option<U>"; "Option<E>";
+    }
+
+    Err -> or [style=invis];  // force "or" to the left of "Result"
+    map1 -> map_or [style=invis];
+
+    {
+        "Result<T, E>" -> or -> "Result<T, E>";
+        "Result<T, E>" -> "Option<T>" [label="ok"];
+        "Result<T, E>" -> err -> "Option<E>";
+        "Result<T, E>" -> unwrap_err -> E;
+        "Result<T, E>" -> unwrap_expect -> T;
+        "Result<T, E>" -> map_or -> U;
+        "Result<T, E>" -> map_err -> "Result<T, F>";
+        "Result<T, E>" -> map1 -> "Result<U, E>";
+        "Option<T>" -> filter -> "Option<T>";
+        "Option<T>" -> "Result<T, E>" [label="ok_or[_else]"];
+        "Option<T>" -> unwrap_expect;
+        "Option<T>" -> unwrap_none -> "()";
+        "Option<T>" -> map2 -> "Option<U>";
+        "Option<T>" -> map_or;
+        E -> Err -> "Result<T, E>";
+        T -> Ok -> "Result<T, E>";
+        T -> Some -> "Option<T>";
+        "()" -> None -> "Option<T>";
+    }
+
+}
