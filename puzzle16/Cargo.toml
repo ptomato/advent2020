@@ -1,0 +1,15 @@
+[package]
+name = "puzzle16"
+version = "0.1.0"
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "puzzle16"
+path = "puzzle16.rs"
+
+[dependencies]
+gcollections = "1.4.0"
+intervallum = "1.3.0"
+itertools = "0.9.0"
+scan_fmt = "0.2.5"
