@@ -9,4 +9,5 @@ name = "puzzle11"
 path = "puzzle11.rs"
 
 [dependencies]
+itertools = "0.9.0"
 ndarray = "0.14.0"

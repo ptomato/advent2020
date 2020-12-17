@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use ndarray::{s, Array2};
 use std::env;
 use std::fs;
@@ -97,26 +98,21 @@ fn incdec(val: usize, delta: isize) -> usize {
 
 fn calc_neighbours(seats: &Array2<i8>) -> Array2<i8> {
     let shape = seats.shape();
-    let width = shape[0];
-    let height = shape[1];
+    let width = shape[0] as isize;
+    let height = shape[1] as isize;
     let mut neighbours = Array2::<i8>::zeros(seats.raw_dim());
     // Add slices of the occupied seats shifted one space in each direction
-    let mut slice = neighbours.slice_mut(s![1.., 1..]);
-    slice += &seats.slice(s![..width - 1, ..height - 1]);
-    slice = neighbours.slice_mut(s![.., 1..]);
-    slice += &seats.slice(s![.., ..height - 1]);
-    slice = neighbours.slice_mut(s![..width - 1, 1..]);
-    slice += &seats.slice(s![1.., ..height - 1]);
-    slice = neighbours.slice_mut(s![1.., ..]);
-    slice += &seats.slice(s![..width - 1, ..]);
-    slice = neighbours.slice_mut(s![..width - 1, ..]);
-    slice += &seats.slice(s![1.., ..]);
-    slice = neighbours.slice_mut(s![1.., ..height - 1]);
-    slice += &seats.slice(s![..width - 1, 1..]);
-    slice = neighbours.slice_mut(s![.., ..height - 1]);
-    slice += &seats.slice(s![.., 1..]);
-    slice = neighbours.slice_mut(s![..width - 1, ..height - 1]);
-    slice += &seats.slice(s![1.., 1..]);
+    for (xstart, ystart) in (-1..=1).cartesian_product(-1..=1) {
+        if xstart == 0 && ystart == 0 {
+            continue;
+        }
+        let xdest = xstart.max(0)..(width + xstart).min(width);
+        let ydest = ystart.max(0)..(height + ystart).min(height);
+        let xsource = (-xstart).max(0)..(width - xstart).min(width);
+        let ysource = (-ystart).max(0)..(height - ystart).min(height);
+        let mut slice = neighbours.slice_mut(s![xdest, ydest]);
+        slice += &seats.slice(s![xsource, ysource]);
+    }
     neighbours
 }
 
