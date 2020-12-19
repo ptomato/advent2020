@@ -1,0 +1,12 @@
+[package]
+name = "puzzle18"
+version = "0.1.0"
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "puzzle18"
+path = "puzzle18.rs"
+
+[dependencies]
+peg = "0.6.3"
