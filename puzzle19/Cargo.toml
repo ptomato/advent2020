@@ -1,0 +1,13 @@
+[package]
+name = "puzzle19"
+version = "0.1.0"
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "puzzle19"
+path = "puzzle19.rs"
+
+[dependencies]
+peg = "0.6.3"
+regex = "1"
