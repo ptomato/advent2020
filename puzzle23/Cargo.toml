@@ -1,0 +1,12 @@
+[package]
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+name = "puzzle23"
+version = "0.1.0"
+[[bin]]
+name = "puzzle23"
+path = "puzzle23.rs"
+
+[dependencies]
+indicatif = "0.15.0"
+itertools = "0.9.0"
