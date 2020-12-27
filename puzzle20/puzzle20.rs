@@ -1,14 +1,13 @@
 #[macro_use]
-extern crate bitflags;
-#[macro_use]
 extern crate scan_fmt;
 
 use bit_reverse::ParallelReverse;
 use itertools::Itertools;
-use ndarray::{concatenate, s, Array2, ArrayView, Axis, Ix1};
-use std::collections::{HashMap, HashSet};
+use multimap::MultiMap;
+use ndarray::{concatenate, s, Array2, ArrayView, ArrayView2, Axis, Ix1};
+use std::collections::HashSet;
 use std::convert::TryInto;
-// use std::env;
+use std::env;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Direction {
@@ -38,16 +37,6 @@ impl Direction {
     fn all() -> [Direction; 4] {
         use Direction::*;
         [TOP, RIGHT, BOTTOM, LEFT]
-    }
-}
-
-bitflags! {
-    struct Directions: u8 {
-        const NONE = 0;
-        const TOP = 0b0001;
-        const RIGHT = 0b0010;
-        const BOTTOM = 0b0100;
-        const LEFT = 0b1000;
     }
 }
 
@@ -95,7 +84,7 @@ impl Tile {
             _ => panic!("Impossible"),
         };
         let rotated_image = rotated_view.into_owned();
-        let mut borders = self.borders.clone();
+        let mut borders = self.borders;
         borders.rotate_left(n);
         Tile {
             id: self.id,
@@ -122,23 +111,6 @@ impl Tile {
         }
     }
 
-    fn flipud(&self) -> Self {
-        let flipped_image = self.image.slice(s![..;-1, ..]).into_owned();
-        let mut borders: Vec<_> = self
-            .borders
-            .iter()
-            .map(|&b| flip_bits(b, self.border_bits))
-            .collect();
-        borders.reverse();
-        borders.rotate_left(1);
-        Tile {
-            id: self.id,
-            borders: borders.try_into().unwrap(),
-            image: flipped_image,
-            border_bits: self.border_bits,
-        }
-    }
-
     fn connection_side(&self, other: &Self) -> Option<Direction> {
         let mut borders2: HashSet<_> = other.borders.iter().cloned().collect();
         borders2.extend(
@@ -157,20 +129,31 @@ impl Tile {
 
     fn connects_in_direction(&self, direction: Direction, other: &Self) -> Option<Direction> {
         let border_to_connect = self.borders[direction as usize];
-        if let Some((_, &other_side)) = other
+        other
             .borders
             .iter()
             .zip(Direction::all().iter())
             .find(|(&border, _)| border == flip_bits(border_to_connect, self.border_bits))
-        {
-            println!(
-                "{}'s {:?} side connects to {}'s {:?} side",
-                self.id, direction, other.id, other_side
-            );
-            Some(other_side)
-        } else {
-            None
+            .map(|(_, &other_side)| other_side)
+    }
+
+    fn match_other(&self, other: &Tile, direction: Direction) -> Option<Tile> {
+        match self.connects_in_direction(direction, other) {
+            None => (),
+            Some(dir) => {
+                let rotations = direction.opposite().difference(dir);
+                return Some(other.clone().rot90(rotations));
+            }
         }
+        let flipped = other.fliplr();
+        match self.connects_in_direction(direction, &flipped) {
+            None => (),
+            Some(dir) => {
+                let rotations = direction.opposite().difference(dir);
+                return Some(flipped.rot90(rotations));
+            }
+        }
+        None
     }
 }
 
@@ -192,247 +175,195 @@ fn to_bits(slice: ArrayView<u8, Ix1>) -> u16 {
 fn main() {
     let input = include_str!("input");
     let tiles = read_input(input);
-    let connections = network(&tiles);
+    let mut solver = Solver::new(&tiles);
 
-    let answer: u64 = connections
-        .iter()
-        .filter(|(_, links)| links.len() == 2)
-        .map(|(id, _)| id)
-        .product();
-    println!("{}", answer);
-}
-
-fn network(tiles: &Vec<Tile>) -> HashMap<u64, HashSet<u64>> {
-    let mut connections = HashMap::new();
-    for (tile1, tile2) in tiles.iter().tuple_combinations() {
-        if tile1.connection_side(tile2).is_some() {
-            let links1 = connections.entry(tile1.id).or_insert(HashSet::new());
-            links1.insert(tile2.id);
-            let links2 = connections.entry(tile2.id).or_insert(HashSet::new());
-            links2.insert(tile1.id);
-        }
+    if is_part2() {
+        let full_image = solver.arrange();
+        let (_, pixels) = all_orientations(&full_image)
+            .iter()
+            .find_map(|image| {
+                let (count, pixels) = count_sea_monsters(image);
+                if count != 0 {
+                    Some((count, pixels))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        println!("{}", full_image.iter().filter(|&&c| c > 0).count() - pixels);
+    } else {
+        let answer: u64 = solver.corners.iter().product();
+        println!("{}", answer);
     }
-    connections
 }
 
-fn categorize(
+struct Solver {
     tiles: Vec<Tile>,
-    connections: &HashMap<u64, HashSet<u64>>,
-) -> (Vec<Tile>, Vec<Tile>, Vec<Tile>) {
-    let mut corners = vec![];
-    let mut edges = vec![];
-    let mut centers = vec![];
-    for tile in tiles {
-        match connections.get(&tile.id).unwrap().len() {
-            2 => corners.push(tile),
-            3 => edges.push(tile),
-            4 => centers.push(tile),
-            _ => panic!("Impossible"),
-        }
-    }
-    (corners, edges, centers)
+    connections: MultiMap<u64, u64>,
+    corners: [u64; 4],
+    used_tile_ids: HashSet<u64>,
 }
 
-fn orient_tile_correctly(tile: &Tile, tile_to_fit: &Tile, direction: Direction) -> Option<Tile> {
-    match tile.connects_in_direction(direction, tile_to_fit) {
-        None => (),
-        Some(dir) => {
-            let rotations = direction.opposite().difference(dir);
-            println!("rotating {} by {} ccw", tile_to_fit.id, rotations);
-            return Some(tile_to_fit.clone().rot90(rotations));
+impl Solver {
+    fn new(tiles: &[Tile]) -> Self {
+        let mut connections = MultiMap::new();
+        for (tile1, tile2) in tiles.iter().tuple_combinations() {
+            if tile1.connection_side(tile2).is_some() {
+                connections.insert(tile1.id, tile2.id);
+                connections.insert(tile2.id, tile1.id);
+            }
         }
-    }
-    let flipped = tile_to_fit.fliplr();
-    match tile.connects_in_direction(direction, &flipped) {
-        None => (),
-        Some(dir) => {
-            let rotations = direction.opposite().difference(dir);
-            println!("flipping {} and rotating by {} ccw", flipped.id, rotations);
-            return Some(flipped.rot90(rotations));
-        }
-    }
-    None
-}
-
-fn find_and_orient_tile(
-    tile: &Tile,
-    possible_tiles: &[Tile],
-    direction: Direction,
-    connections: &HashMap<u64, HashSet<u64>>,
-    used_tile_ids: &mut HashSet<u64>,
-) -> Option<Tile> {
-    let tile_connections = connections.get(&tile.id).unwrap();
-    let candidates = possible_tiles
-        .iter()
-        .filter(|t| tile_connections.contains(&t.id) && !used_tile_ids.contains(&t.id));
-    for candidate in candidates {
-        println!(
-            "candidate for connecting to {} ({:?}) is {} ({:?})",
-            tile.id, tile.borders, candidate.id, candidate.borders
-        );
-        let next_tile = orient_tile_correctly(tile, candidate, direction);
-        if let Some(t) = &next_tile {
-            used_tile_ids.insert(t.id);
-            return next_tile;
-        }
-    }
-    None
-}
-
-fn arrange(
-    corners: &[Tile],
-    edges: &[Tile],
-    centers: &[Tile],
-    connections: &HashMap<u64, HashSet<u64>>,
-) -> Array2<u8> {
-    assert_eq!(corners.len(), 4);
-
-    let mut used_tile_ids = HashSet::new();
-
-    // Find top left corner - pick an arbitrary corner tile and rotate it until
-    // it has connections on the right and bottom
-    let mut tl_corner = corners[0].clone();
-    used_tile_ids.insert(tl_corner.id);
-    let mut tl_corner_connections = Directions::NONE;
-    for possible_edge in edges {
-        match tl_corner.connection_side(&possible_edge) {
-            None => continue,
-            Some(dir) if dir == Direction::TOP => tl_corner_connections |= Directions::TOP,
-            Some(dir) if dir == Direction::RIGHT => tl_corner_connections |= Directions::RIGHT,
-            Some(dir) if dir == Direction::BOTTOM => tl_corner_connections |= Directions::BOTTOM,
-            Some(dir) if dir == Direction::LEFT => tl_corner_connections |= Directions::LEFT,
-            Some(_) => panic!("Impossible"),
-        }
-    }
-    tl_corner = tl_corner.rot90(match tl_corner_connections {
-        dir if dir == Directions::RIGHT | Directions::BOTTOM => 0,
-        dir if dir == Directions::BOTTOM | Directions::LEFT => 1,
-        dir if dir == Directions::LEFT | Directions::TOP => 2,
-        dir if dir == Directions::TOP | Directions::RIGHT => 3,
-        _ => panic!("Impossible"),
-    });
-
-    // Build the top edge
-    let mut t_row = vec![tl_corner];
-    let mut current_tile = &t_row[t_row.len() - 1];
-    loop {
-        match find_and_orient_tile(
-            &current_tile,
-            &edges,
-            Direction::RIGHT,
+        let corners: Vec<_> = tiles
+            .iter()
+            .map(|tile| tile.id)
+            .filter(|id| match connections.get_vec(id).unwrap().len() {
+                2 => true,
+                3 | 4 => false,
+                _ => panic!("Impossible"),
+            })
+            .collect();
+        Self {
+            tiles: tiles.to_vec(),
             connections,
-            &mut used_tile_ids,
-        ) {
-            None => break,
-            Some(tile) => {
-                t_row.push(tile);
-                current_tile = &t_row[t_row.len() - 1];
+            corners: corners.try_into().unwrap(),
+            used_tile_ids: HashSet::new(),
+        }
+    }
+
+    fn find_and_orient_tile(&mut self, tile: &Tile, direction: Direction) -> Option<Tile> {
+        let tile_connections = self.connections.get_vec(&tile.id).unwrap();
+        let maybe_next_tile = self
+            .tiles
+            .iter()
+            .filter(|t| tile_connections.contains(&t.id) && !self.used_tile_ids.contains(&t.id))
+            .find_map(|candidate| tile.match_other(candidate, direction));
+        if let Some(t) = &maybe_next_tile {
+            self.used_tile_ids.insert(t.id);
+        }
+        maybe_next_tile
+    }
+
+    fn arrange(&mut self) -> Array2<u8> {
+        // Find top left corner - pick an arbitrary corner tile and rotate it until
+        // it has connections on the right and bottom
+        let mut tl_corner = self
+            .tiles
+            .iter()
+            .find(|tile| self.corners.contains(&tile.id))
+            .unwrap()
+            .clone();
+        self.used_tile_ids.insert(tl_corner.id);
+        let tl_corner_connections: Vec<_> = self
+            .tiles
+            .iter()
+            .filter(|t| {
+                self.connections
+                    .get_vec(&tl_corner.id)
+                    .unwrap()
+                    .contains(&t.id)
+            })
+            .map(|candidate| tl_corner.connection_side(&candidate))
+            .filter(Option::is_some)
+            .map(Option::unwrap)
+            .collect();
+        assert_eq!(tl_corner_connections.len(), 2);
+        tl_corner = tl_corner.rot90(match (tl_corner_connections[0], tl_corner_connections[1]) {
+            (Direction::RIGHT, Direction::BOTTOM) | (Direction::BOTTOM, Direction::RIGHT) => 0,
+            (Direction::LEFT, Direction::BOTTOM) | (Direction::BOTTOM, Direction::LEFT) => 1,
+            (Direction::LEFT, Direction::TOP) | (Direction::TOP, Direction::LEFT) => 2,
+            (Direction::RIGHT, Direction::TOP) | (Direction::TOP, Direction::RIGHT) => 3,
+            _ => panic!("Impossible {:?}", tl_corner_connections),
+        });
+
+        // Build the top edge
+        let mut t_row = vec![tl_corner];
+        loop {
+            match self.find_and_orient_tile(&&t_row[t_row.len() - 1], Direction::RIGHT) {
+                None => break,
+                Some(tile) => {
+                    t_row.push(tile);
+                }
+            }
+        }
+
+        let ncols = t_row.len();
+        let nrows = self.tiles.len() / ncols;
+
+        println!("whole image is {}×{}", ncols, nrows);
+
+        // For each subsequent row...
+        let mut rows = vec![t_row];
+        for row in 1..nrows {
+            // Arrange the tiles that connect to the ones in the row above
+            rows.push(
+                (0..ncols)
+                    .map(|col| {
+                        self.find_and_orient_tile(&rows[row - 1][col], Direction::BOTTOM)
+                            .unwrap()
+                    })
+                    .collect(),
+            );
+        }
+
+        // Concatenate all the image data together
+        let all_rows: Vec<_> = rows
+            .iter()
+            .map(|row| {
+                let row_images: Vec<_> = row.iter().map(|t| t.image.view()).collect();
+                concatenate(Axis(1), &row_images).unwrap()
+            })
+            .collect();
+        concatenate(
+            Axis(0),
+            &all_rows.iter().map(|row| row.view()).collect::<Vec<_>>(),
+        )
+        .unwrap()
+    }
+}
+
+fn all_orientations(image: &Array2<u8>) -> [ArrayView2<u8>; 8] {
+    [
+        image.view(),
+        image.view().reversed_axes(),
+        image.slice(s![.., ..;-1]),
+        image.slice(s![.., ..;-1]).reversed_axes(),
+        image.slice(s![..;-1, ..]),
+        image.slice(s![..;-1, ..]).reversed_axes(),
+        image.slice(s![..;-1, ..;-1]),
+        image.slice(s![..;-1, ..;-1]).reversed_axes(),
+    ]
+}
+
+static SEA_MONSTER: [&str; 3] = [
+    "                  # ",
+    "#    ##    ##    ###",
+    " #  #  #  #  #  #   ",
+];
+
+fn count_sea_monsters(image: &ArrayView2<u8>) -> (usize, usize) {
+    let mon_rows = SEA_MONSTER.len();
+    let mon_cols = SEA_MONSTER[0].len();
+    let mut sea_monster = Array2::zeros((mon_rows, mon_cols));
+    for (y, line) in SEA_MONSTER.iter().enumerate() {
+        for (x, cell) in line.bytes().enumerate() {
+            sea_monster[[y, x]] = (cell != b' ') as u8;
+        }
+    }
+    let mon_pixels: u8 = sea_monster.iter().sum();
+
+    let mut monsters = 0;
+    let rows = image.nrows();
+    let cols = image.ncols();
+    for y in 0..(rows - mon_rows) {
+        for x in 0..(cols - mon_cols) {
+            let slice = image.slice(s![y..(y + mon_rows), x..(x + mon_cols)]);
+            let correlation = &slice * &sea_monster.view();
+            if correlation.iter().sum::<u8>() == mon_pixels {
+                monsters += 1;
             }
         }
     }
-    let tr_corner = find_and_orient_tile(
-        &current_tile,
-        &corners,
-        Direction::RIGHT,
-        connections,
-        &mut used_tile_ids,
-    )
-    .unwrap();
-
-    t_row.push(tr_corner);
-
-    let ncols = t_row.len();
-    let nrows = (corners.len() + edges.len() + centers.len()) / ncols;
-
-    println!("whole image is {}×{}", ncols, nrows);
-
-    // For each subsequent row except the bottom one...
-    let mut rows = vec![t_row];
-    for row in 1..nrows - 1 {
-        // Find the left edge of the row
-        let left = find_and_orient_tile(
-            &rows[row - 1][0],
-            &edges,
-            Direction::BOTTOM,
-            connections,
-            &mut used_tile_ids,
-        )
-        .unwrap();
-        let mut current_row = vec![left];
-        // Arrange the middle tiles
-        for col in 1..ncols - 1 {
-            let next_tile = find_and_orient_tile(
-                &current_row[col - 1],
-                &centers,
-                Direction::RIGHT,
-                connections,
-                &mut used_tile_ids,
-            )
-            .unwrap();
-            current_row.push(next_tile);
-        }
-        // Find the right edge of the row
-        let right = find_and_orient_tile(
-            &current_row[ncols - 2],
-            &edges,
-            Direction::RIGHT,
-            connections,
-            &mut used_tile_ids,
-        )
-        .unwrap();
-        current_row.push(right);
-
-        rows.push(current_row);
-    }
-
-    // Now the bottom left corner
-    let bl_corner = find_and_orient_tile(
-        &rows[nrows - 2][0],
-        &corners,
-        Direction::BOTTOM,
-        connections,
-        &mut used_tile_ids,
-    )
-    .unwrap();
-    let mut b_row = vec![bl_corner];
-    // Bottom edge
-    for col in 1..ncols - 1 {
-        b_row.push(
-            find_and_orient_tile(
-                &b_row[col - 1],
-                &edges,
-                Direction::RIGHT,
-                connections,
-                &mut used_tile_ids,
-            )
-            .unwrap(),
-        );
-    }
-    // Last tile
-    let br_corner = find_and_orient_tile(
-        &b_row[ncols - 2],
-        &corners,
-        Direction::RIGHT,
-        connections,
-        &mut used_tile_ids,
-    )
-    .unwrap();
-    b_row.push(br_corner);
-    rows.push(b_row);
-
-    // Stack all the image data together
-    let all_rows: Vec<_> = rows
-        .iter()
-        .map(|row| {
-            let row_images: Vec<_> = row.iter().map(|t| t.image.view()).collect();
-            concatenate(Axis(1), &row_images).unwrap()
-        })
-        .collect();
-    concatenate(
-        Axis(0),
-        &all_rows.iter().map(|row| row.view()).collect::<Vec<_>>(),
-    )
-    .unwrap()
+    (monsters, monsters * mon_pixels as usize)
 }
 
 fn read_grid(lines: &[&str]) -> Array2<u8> {
@@ -462,14 +393,14 @@ fn read_tile(input: &str) -> Tile {
 fn read_input(input: &'static str) -> Vec<Tile> {
     input
         .split("\n\n")
-        .filter(|s| s.len() > 0)
+        .filter(|s| !s.is_empty())
         .map(read_tile)
         .collect()
 }
 
-// fn is_part2() -> bool {
-//     env::args().nth(1).map(|val| val == "2").unwrap_or(false)
-// }
+fn is_part2() -> bool {
+    env::args().nth(1).map(|val| val == "2").unwrap_or(false)
+}
 
 #[test]
 fn example() {
@@ -481,23 +412,30 @@ fn example() {
         [2311, 1951, 1171, 1427, 1489, 2473, 2971, 2729, 3079]
     );
 
-    let connections = network(&tiles);
+    let mut solver = Solver::new(&tiles);
     assert_eq!(
         tiles
             .iter()
-            .map(|t| connections.get(&t.id).unwrap().len())
+            .map(|t| solver.connections.get_vec(&t.id).unwrap().len())
             .collect::<Vec<usize>>(),
         [3, 2, 2, 4, 3, 3, 2, 3, 2]
     );
 
-    let (corners, edges, centers) = categorize(tiles, &connections);
-    assert_eq!(corners.len(), 4);
-    assert_eq!(edges.len(), 4);
-    assert_eq!(centers.len(), 1);
+    assert_eq!(solver.corners.len(), 4);
 
-    let full_image = arrange(&corners, &edges, &centers, &connections);
-    dbg!(full_image);
-    todo!()
+    let full_image = solver.arrange();
+    let monsters = all_orientations(&full_image).iter().find_map(|image| {
+        let (count, pixels) = count_sea_monsters(image);
+        if count != 0 {
+            Some((count, pixels))
+        } else {
+            None
+        }
+    });
+    let (count, pixels) = monsters.unwrap();
+    assert_eq!(count, 2);
+    assert_eq!(pixels, 30);
+    assert_eq!(full_image.iter().filter(|&&c| c > 0).count() - pixels, 273);
 }
 
 #[test]
@@ -517,7 +455,7 @@ fn direction_difference() {
 }
 
 #[cfg(test)]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 static TEST_TILE: [&'static str; 8] = [
     ".#......",
     "....###.",
@@ -582,25 +520,6 @@ fn tile_fliplr() {
             [0, 0, 0, 0, 1, 0],
             [0, 0, 0, 0, 1, 0],
             [0, 0, 0, 0, 0, 0],
-        ])
-    );
-}
-
-#[test]
-fn tile_flipud() {
-    let grid = read_grid(&TEST_TILE);
-    let tile = Tile::new(1, &grid).flipud();
-    assert_eq!(tile.id, 1);
-    assert_eq!(tile.borders, [96, 32, 64, 16]);
-    assert_eq!(
-        tile.image,
-        ndarray::arr2(&[
-            [0, 0, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 1],
-            [0, 0, 0, 1, 1, 1],
         ])
     );
 }
