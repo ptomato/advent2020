@@ -1,0 +1,13 @@
+[package]
+name = "puzzle24"
+version = "0.1.0"
+authors = ["Philip Chimento <philip.chimento@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "puzzle24"
+path = "puzzle24.rs"
+
+[dependencies]
+multiset = "0.0.5"
+ndarray = "0.14.0"
