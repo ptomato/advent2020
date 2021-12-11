@@ -4,15 +4,15 @@ fn count_increases(measurements: impl Iterator<Item=i32>) -> usize {
     measurements.tuple_windows().filter(|(a, b)| b - a > 0).count()
 }
 
-fn sum_triplets(measurements: impl Iterator<Item=i32>) -> impl Iterator<Item=i32> {
-    measurements.tuple_windows().map(|(a, b, c)| (a + b + c) as i32)
+fn count_triplet_increases(measurements: impl Iterator<Item=i32>) -> usize {
+    measurements.tuple_windows().filter(|(a, _, _, b)| b - a > 0).count()
 }
 
 pub fn main(is_part2: bool) {
     let input = include_str!("input/puzzle1");
     let measurements = input.lines().map(|s| s.parse().unwrap());
     let answer = if is_part2 {
-        count_increases(sum_triplets(measurements))
+        count_triplet_increases(measurements)
     } else {
         count_increases(measurements)
     };
@@ -40,15 +40,5 @@ fn part1_example() {
 
 #[test]
 fn part2_example() {
-    itertools::assert_equal(sum_triplets(EXAMPLE_INPUT.into_iter()), [
-        607,
-        618,
-        618,
-        617,
-        647,
-        716,
-        769,
-        792,
-    ]);
-    assert_eq!(count_increases(sum_triplets(EXAMPLE_INPUT.into_iter())), 5);
+    assert_eq!(count_triplet_increases(EXAMPLE_INPUT.into_iter()), 5);
 }
