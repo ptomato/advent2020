@@ -6,6 +6,7 @@ use std::process;
 mod puzzle1;
 mod puzzle2;
 mod puzzle3;
+mod puzzle4;
 
 fn is_part2() -> bool {
     env::args().nth(2).map(|val| val == "2").unwrap_or(false)
@@ -20,6 +21,7 @@ fn main() {
         "1" => puzzle1::main(is_part2()),
         "2" => puzzle2::main(is_part2()),
         "3" => puzzle3::main(is_part2()),
+        "4" => puzzle4::main(is_part2()),
         _ => println!("Unknown puzzle {}", puzzle),
     }
 }
