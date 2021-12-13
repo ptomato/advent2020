@@ -1,11 +1,17 @@
 use itertools::Itertools;
 
-fn count_increases(measurements: impl Iterator<Item=i32>) -> usize {
-    measurements.tuple_windows().filter(|(a, b)| b - a > 0).count()
+fn count_increases(measurements: impl Iterator<Item = i32>) -> usize {
+    measurements
+        .tuple_windows()
+        .filter(|(a, b)| b - a > 0)
+        .count()
 }
 
-fn count_triplet_increases(measurements: impl Iterator<Item=i32>) -> usize {
-    measurements.tuple_windows().filter(|(a, _, _, b)| b - a > 0).count()
+fn count_triplet_increases(measurements: impl Iterator<Item = i32>) -> usize {
+    measurements
+        .tuple_windows()
+        .filter(|(a, _, _, b)| b - a > 0)
+        .count()
 }
 
 pub fn main(is_part2: bool) {
@@ -20,18 +26,7 @@ pub fn main(is_part2: bool) {
 }
 
 #[cfg(test)]
-static EXAMPLE_INPUT: [i32; 10] = [
-    199,
-    200,
-    208,
-    210,
-    200,
-    207,
-    240,
-    269,
-    260,
-    263,
-];
+static EXAMPLE_INPUT: [i32; 10] = [199, 200, 208, 210, 200, 207, 240, 269, 260, 263];
 
 #[test]
 fn part1_example() {

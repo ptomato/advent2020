@@ -57,9 +57,9 @@ impl Sub {
             Forward(dist) => {
                 self.position += dist;
                 self.depth += dist * self.aim;
-            },
+            }
             Up(dist) => self.aim -= dist,
-            Down(dist) =>self.aim += dist,
+            Down(dist) => self.aim += dist,
         }
     }
 }
@@ -80,7 +80,9 @@ pub fn main(is_part2: bool) {
 #[test]
 fn part1_example() {
     let mut sub = Sub::new();
-    Direction::EXAMPLE_INPUT.into_iter().for_each(|dir| sub.go(dir));
+    Direction::EXAMPLE_INPUT
+        .into_iter()
+        .for_each(|dir| sub.go(dir));
     assert_eq!(sub.position, 15);
     assert_eq!(sub.depth, 10);
 }
@@ -88,7 +90,9 @@ fn part1_example() {
 #[test]
 fn part2_example() {
     let mut sub = Sub::new();
-    Direction::EXAMPLE_INPUT.into_iter().for_each(|dir| sub.move_aim(dir));
+    Direction::EXAMPLE_INPUT
+        .into_iter()
+        .for_each(|dir| sub.move_aim(dir));
     assert_eq!(sub.position, 15);
     assert_eq!(sub.depth, 60);
     assert_eq!(sub.aim, 10);

@@ -36,7 +36,11 @@ fn calc_rating(lines: &[&str], bit_func: &impl Fn(usize, usize) -> bool) -> u64 
     let mut possibilities = Vec::from(lines);
     for count_index in 0..possibilities[0].len() {
         let count = count_bits(&possibilities)[count_index];
-        let bit = if bit_func(count, possibilities.len()) {b'1'} else {b'0'};
+        let bit = if bit_func(count, possibilities.len()) {
+            b'1'
+        } else {
+            b'0'
+        };
         possibilities.retain(|val| val.as_bytes()[count_index] == bit);
         if possibilities.len() == 1 {
             break;
@@ -61,18 +65,8 @@ pub fn main(is_part2: bool) {
 
 #[cfg(test)]
 static EXAMPLE_INPUT: [&'static str; 12] = [
-    "00100",
-    "11110",
-    "10110",
-    "10111",
-    "10101",
-    "01111",
-    "00111",
-    "11100",
-    "10000",
-    "11001",
-    "00010",
-    "01010",
+    "00100", "11110", "10110", "10111", "10101", "01111", "00111", "11100", "10000", "11001",
+    "00010", "01010",
 ];
 
 #[test]
