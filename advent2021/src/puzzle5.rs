@@ -1,4 +1,5 @@
 use ndarray::prelude::*;
+use std::cmp::{max, min};
 
 type Pair = ((usize, usize), (usize, usize));
 
@@ -11,10 +12,20 @@ fn read_input(input: &str) -> impl Iterator<Item = Pair> + '_ {
 }
 
 fn draw_line(grid: &mut Array2<usize>, ((x1, y1), (x2, y2)): Pair) {
-    let (x1, x2) = (std::cmp::min(x1, x2), std::cmp::max(x1, x2));
-    let (y1, y2) = (std::cmp::min(y1, y2), std::cmp::max(y1, y2));
+    let increment = if x1 == x2 || y1 == y2 {
+        array![[1]] // Horizontal or vertical line
+    } else if (x1 > x2 && y1 > y2) || (x1 < x2 && y1 < y2) {
+        Array::eye(max(x1, x2) - min(x1, x2) + 1) // NW-SE diagonal
+    } else {
+        // SW-NE diagonal
+        Array::eye(max(x1, x2) - min(x1, x2) + 1)
+            .slice(s![.., ..;-1])
+            .into_owned()
+    };
+    let (x1, x2) = (min(x1, x2), max(x1, x2));
+    let (y1, y2) = (min(y1, y2), max(y1, y2));
     let mut slice = grid.slice_mut(s![x1..=x2, y1..=y2]);
-    slice += 1;
+    slice += &increment;
 }
 
 fn count_dangerous_areas(grid: &Array2<usize>) -> usize {
@@ -25,7 +36,7 @@ pub fn main(is_part2: bool) {
     let input = include_str!("input/puzzle5");
     let mut grid = Array::zeros((1000, 1000));
     read_input(input)
-        .filter(|((x1, y1), (x2, y2))| x1 == x2 || y1 == y2)
+        .filter(|((x1, y1), (x2, y2))| if is_part2 { true } else { x1 == x2 || y1 == y2 })
         .for_each(|coords| draw_line(&mut grid, coords));
     println!("{}", count_dangerous_areas(&grid));
 }
@@ -84,4 +95,29 @@ fn part1_example() {
         .t()
     );
     assert_eq!(count_dangerous_areas(&grid), 5);
+}
+
+#[test]
+fn part2_example() {
+    let mut grid = Array::zeros((10, 10));
+    EXAMPLE_COORDS
+        .iter()
+        .for_each(|&coords| draw_line(&mut grid, coords));
+    assert_eq!(
+        grid,
+        array![
+            [1, 0, 1, 0, 0, 0, 0, 1, 1, 0],
+            [0, 1, 1, 1, 0, 0, 0, 2, 0, 0],
+            [0, 0, 2, 0, 1, 0, 1, 1, 1, 0],
+            [0, 0, 0, 1, 0, 2, 0, 2, 0, 0],
+            [0, 1, 1, 2, 3, 1, 3, 2, 1, 1],
+            [0, 0, 0, 1, 0, 2, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+            [0, 1, 0, 0, 0, 0, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+            [2, 2, 2, 1, 1, 1, 0, 0, 0, 0],
+        ]
+        .t()
+    );
+    assert_eq!(count_dangerous_areas(&grid), 12);
 }
