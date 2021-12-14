@@ -10,6 +10,7 @@ mod puzzle3;
 mod puzzle4;
 mod puzzle5;
 mod puzzle6;
+mod puzzle7;
 
 fn is_part2() -> bool {
     env::args().nth(2).map(|val| val == "2").unwrap_or(false)
@@ -27,6 +28,7 @@ fn main() {
         "4" => puzzle4::main(is_part2()),
         "5" => puzzle5::main(is_part2()),
         "6" => puzzle6::main(is_part2()),
+        "7" => puzzle7::main(is_part2()),
         _ => println!("Unknown puzzle {}", puzzle),
     }
 }
