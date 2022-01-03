@@ -34,7 +34,7 @@ fn main() {
         "7" => puzzle7::main(is_part2()),
         "8" => puzzle8::main(is_part2()),
         "9" => puzzle9::main(),
-        "10" => puzzle10::main(is_part2()),
+        "10" => puzzle10::main(),
         _ => println!("Unknown puzzle {}", puzzle),
     }
 }

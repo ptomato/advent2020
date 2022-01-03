@@ -14,7 +14,7 @@ fn expect(stack: &mut Vec<Bracket>, expected: Bracket) -> Result<(), Bracket> {
     }
 }
 
-fn check(line: &str) -> Result<(), Bracket> {
+fn check(line: &str) -> Result<Vec<Bracket>, Bracket> {
     let mut stack: Vec<Bracket> = Default::default();
     for b in line.bytes() {
         match b {
@@ -29,7 +29,7 @@ fn check(line: &str) -> Result<(), Bracket> {
             _ => panic!("Unexpected character {}", b),
         }
     }
-    Ok(())
+    Ok(stack)
 }
 
 fn score(bracket: Bracket) -> usize {
@@ -41,31 +41,83 @@ fn score(bracket: Bracket) -> usize {
     }
 }
 
-pub fn main(_is_part2: bool) {
+fn score_autocomplete(stack: Vec<Bracket>) -> usize {
+    stack
+        .iter()
+        .enumerate()
+        .map(|(ix, bracket)| {
+            5_usize.pow(ix.try_into().unwrap())
+                * match bracket {
+                    Bracket::Round => 1,
+                    Bracket::Square => 2,
+                    Bracket::Curly => 3,
+                    Bracket::Angle => 4,
+                }
+        })
+        .sum::<usize>()
+}
+
+pub fn main() {
+    let input = include_str!("input/puzzle10");
     println!(
         "{}",
-        include_str!("input/puzzle10")
+        input
             .lines()
             .filter_map(|l| check(l).err())
             .map(score)
             .sum::<usize>()
     );
+    let mut scores: Vec<usize> = input
+        .lines()
+        .filter_map(|l| check(l).ok())
+        .map(score_autocomplete)
+        .collect();
+    scores.sort();
+    println!("{}", scores[scores.len() / 2]);
 }
 
 #[test]
 fn test_bracket_check() {
-    assert_eq!(check("()"), Ok(()));
-    assert_eq!(check("[]"), Ok(()));
-    assert_eq!(check("([])"), Ok(()));
-    assert_eq!(check("{()()()}"), Ok(()));
-    assert_eq!(check("<([{}])>"), Ok(()));
-    assert_eq!(check("[<>({}){}[([])<>]]"), Ok(()));
-    assert_eq!(check("(((((((((())))))))))"), Ok(()));
+    assert_eq!(check("()"), Ok(vec![]));
+    assert_eq!(check("[]"), Ok(vec![]));
+    assert_eq!(check("([])"), Ok(vec![]));
+    assert_eq!(check("{()()()}"), Ok(vec![]));
+    assert_eq!(check("<([{}])>"), Ok(vec![]));
+    assert_eq!(check("[<>({}){}[([])<>]]"), Ok(vec![]));
+    assert_eq!(check("(((((((((())))))))))"), Ok(vec![]));
 
     assert_eq!(check("(]"), Err(Bracket::Square));
     assert_eq!(check("{()()()>"), Err(Bracket::Angle));
     assert_eq!(check("(((()))}"), Err(Bracket::Curly));
     assert_eq!(check("<([]){()}[{}])"), Err(Bracket::Round));
+
+    use Bracket::*;
+    assert_eq!(
+        check("[({(<(())[]>[[{[]{<()<>>"),
+        Ok(vec![
+            Square, Round, Curly, Round, Square, Square, Curly, Curly
+        ])
+    );
+    assert_eq!(
+        check("[(()[<>])]({[<{<<[]>>("),
+        Ok(vec![Round, Curly, Square, Angle, Curly, Round])
+    );
+    assert_eq!(
+        check("(((({<>}<{<{<>}{[]{[]{}"),
+        Ok(vec![
+            Round, Round, Round, Round, Angle, Curly, Angle, Curly, Curly
+        ])
+    );
+    assert_eq!(
+        check("{<[[]]>}<{[{[{[]{()[[[]"),
+        Ok(vec![
+            Angle, Curly, Square, Curly, Square, Curly, Curly, Square, Square
+        ])
+    );
+    assert_eq!(
+        check("<{([{{}}[<[[[<>{}]]]>[]]"),
+        Ok(vec![Angle, Curly, Round, Square])
+    );
 }
 
 #[cfg(test)]
@@ -92,4 +144,16 @@ fn part1_example() {
             .sum::<usize>(),
         26397
     );
+}
+
+#[test]
+fn part2_example() {
+    let mut scores: Vec<usize> = EXAMPLE_INPUT
+        .lines()
+        .filter_map(|line| check(line).ok())
+        .map(score_autocomplete)
+        .collect();
+    assert_eq!(scores, vec![288957, 5566, 1480781, 995444, 294]);
+    scores.sort();
+    assert_eq!(scores[scores.len() / 2], 288957);
 }
