@@ -5,6 +5,7 @@ use std::process;
 extern crate scan_fmt;
 
 mod puzzle1;
+mod puzzle10;
 mod puzzle2;
 mod puzzle3;
 mod puzzle4;
@@ -33,6 +34,7 @@ fn main() {
         "7" => puzzle7::main(is_part2()),
         "8" => puzzle8::main(is_part2()),
         "9" => puzzle9::main(),
+        "10" => puzzle10::main(is_part2()),
         _ => println!("Unknown puzzle {}", puzzle),
     }
 }
