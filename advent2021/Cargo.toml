@@ -6,5 +6,6 @@ edition = "2021"
 
 [dependencies]
 itertools = "0.10.3"
+multimap = "0.8.3"
 ndarray = "0.15.4"
 scan_fmt = "0.2.6"
